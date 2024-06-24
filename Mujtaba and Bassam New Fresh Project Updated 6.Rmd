@@ -1,0 +1,2287 @@
+---
+title: "Data Mining Project"
+author: "Bassam Shazli & Mujtaba Nadeem"
+date: "2023-10-30"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# necessary libraries
+library(readr)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(stringr)
+library(lubridate)
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+install.packages("fastmap")
+install.packages("skimr")
+library(skimr)
+library(fastDummies)
+library(data.table)
+
+#Load the data set
+HotelLisbon_data <- read_csv("F:/2023/Mercer Univesity/MSBA class 2023/2nd semester/BDA 620 Data Mining/Final Project/data collection/Hotel Customers data/Random Selected data/sample1hotel.csv")
+View(HotelLisbon_data)
+dim(HotelLisbon_data)
+
+```
+
+
+
+
+#Let's first investigate the raw data. 
+
+
+
+
+```{r}
+
+print(colnames(HotelLisbon_data))
+```
+```{r}
+skim(HotelLisbon_data)
+```
+```{r}
+str(HotelLisbon_data)
+```
+
+```{r}
+# HotelLisbon_data is my data frame
+
+# Install and load the knitr package
+install.packages("knitr")
+library(knitr)
+
+# Create a data frame with variable names and their types
+variable_summary <- data.frame(
+  Variable = names(HotelLisbon_data),
+  Type = sapply(HotelLisbon_data, class)
+)
+
+# Use kable to create a simple table
+kable(variable_summary, caption = "Variable Summary")
+
+
+```
+
+
+
+#Let's see what we can evaluate if we view the summary statistics
+```{r}
+
+summary(HotelLisbon_data)
+```
+
+```{r}
+library(knitr)
+
+# Create a summary table
+summary_table <- summary(HotelLisbon_data)
+
+# Use kable to create a table
+kable(summary_table, format = "markdown", caption = "Summary Statistics")
+```
+
+
+
+
+Let's see if we have any missing Values
+```{r}
+
+# Checking for missing values
+missing_values <- colSums(is.na(HotelLisbon_data))
+missing_values
+```
+#seems like there are no missing values.
+
+
+
+#At first glance at reading the summary statistics, "Age" is considered as character, which should not be the case. There might be characters in some data.
+
+#Yes, after, checking the data set, there is "Null" values for customers from "Nationality" PRT. WE need to view the whole data
+
+#Let's investigate all the Null Values if there are any
+
+```{r}
+# Check for null values in the entire dataset
+null_values <- sum(is.na(HotelLisbon_data))
+
+null_values_age <- sum(is.na(HotelLisbon_data$Age))
+
+
+null_values
+null_values_age
+
+```
+#There seem to be no null values
+
+```{r}
+
+ # Find rows where Age is NULL
+null_age_rows <- HotelLisbon_data$Age == "NULL"
+
+# Create a table of Nationality and count occurrences of NULL in Age
+null_age_by_country <- table(HotelLisbon_data$Nationality[null_age_rows])
+
+# Print the result
+print(null_age_by_country)
+
+```
+#Only age has a NULL value
+
+#from observaing the data set "NULL" in CAPS is written on age.
+
+#Let's see which customers have NULL values age.
+
+```{r}
+
+customers_with_null_age <- HotelLisbon_data %>%
+  filter(Age == "NULL") %>%
+  select(ID, Nationality, NameHash, DocIDHash)
+
+
+print(customers_with_null_age)
+
+
+```
+#There are many Nationality PRT with NULL age value and 
+#found PAN, ESP and PRT in Nationality as NULL too 
+#we need to make Age into a Numerical/Quantitative variable. 
+
+
+#Let's check for negative, NA, NULL values in variables
+
+```{r}
+# Number of negative observations in each variable
+negative_values <- sapply(HotelLisbon_data, function(x) sum(x < 0, na.rm = TRUE))
+print(negative_values)
+
+# Number of NA observations in each variable
+na_values <- sapply(HotelLisbon_data, function(x) sum(is.na(x)))
+print(na_values)
+
+# Number of NULL observations in each variable (assuming NULL is written as "NULL" in character columns)
+null_values_char <- sapply(HotelLisbon_data, function(x) sum(x == "NULL"))
+print(null_values_char)
+
+# Number of NULL observations in each variable (assuming NULL is written as NA in numeric columns)
+null_values_na <- sapply(HotelLisbon_data, function(x) sum(is.na(x)))
+print(null_values_na)
+
+```
+
+#Let's specify which Variables and how many observations haev NULL, NA or negative values
+```{r}
+# Create a data frame to store the counts
+observations_summary <- data.frame(
+  Variable = names(HotelLisbon_data),
+  Negative = sapply(HotelLisbon_data, function(x) sum(x < 0, na.rm = TRUE)),
+  NA_Count = sapply(HotelLisbon_data, function(x) sum(is.na(x))),
+  NULL_Count = sapply(HotelLisbon_data, function(x) sum(x == "NULL"))
+)
+
+# Print the summary
+print(observations_summary)
+
+```
+#Variables with Negative Values:
+#Age: 15 negative values
+#AverageLeadTime: 10 negative values
+#DaysSinceLastStay: 17,886 negative values
+#DaysSinceFirstStay: 17,886 negative values
+
+#Variables with NA Values:
+#No variable has NA values.
+#Variables with "NULL" Values:
+#Age: 3,370 "NULL" values
+
+
+#Let's first investigate Unique values in our data set
+```{r}
+
+# Function to get limited unique values for each variable
+get_limited_unique_values <- function(data, limit = 20) {
+  limited_unique_values <- lapply(data, function(x) unique(x)[1:min(length(unique(x)), limit)])
+  return(limited_unique_values)
+}
+
+# Set a limit for the number of unique values to display
+display_limit <- 20
+
+# Get limited unique values for each variable in HotelLisbon_data
+limited_unique_values_list <- get_limited_unique_values(HotelLisbon_data, display_limit)
+
+# Print limited unique values
+for (i in seq_along(limited_unique_values_list)) {
+  cat("Variable:", names(limited_unique_values_list)[i], "\n")
+  print(limited_unique_values_list[[i]])
+  cat("\n")
+}
+
+
+```
+
+
+
+#Let's fix Age variable first
+```{r}
+# Convert Age to numeric
+HotelLisbon_data$Age <- as.numeric(as.character(HotelLisbon_data$Age))
+
+# Replace missing values with median
+median_age <- median(HotelLisbon_data$Age, na.rm = TRUE)
+HotelLisbon_data$Age[is.na(HotelLisbon_data$Age)] <- median_age
+
+# Print the median age
+cat("Median Age:", median_age, "\n")
+
+# Check for missing values after replacement
+sum(is.na(HotelLisbon_data$Age))
+
+
+```
+#Age: 15 negative values
+#Let's find out which ones these are and why
+
+```{r}
+# Identify rows with negative Age values
+negative_age_rows <- HotelLisbon_data$Age < 0
+
+# Display the rows with negative Age values
+rows_with_negative_age <- HotelLisbon_data[negative_age_rows, ]
+
+# Print the result
+print(rows_with_negative_age)
+
+```
+#there seems to be inaccuarcy in age as well. There are negative values in ages and there are single digit ages, which can't be right as a Hotel you cannot entertain children. 
+
+```{r}
+# Display the class of each variable
+sapply(HotelLisbon_data, class)
+
+```
+
+
+
+#let's now change certain character variables into factors and Binary variables into factors
+
+```{r}
+# Convert character variables to factor
+HotelLisbon_data$Nationality <- as.factor(HotelLisbon_data$Nationality)
+HotelLisbon_data$DistributionChannel <- as.factor(HotelLisbon_data$DistributionChannel)
+HotelLisbon_data$MarketSegment <- as.factor(HotelLisbon_data$MarketSegment)
+
+# Convert binary variables to factor
+binary_vars <- c(
+                 "SRHighFloor", "SRLowFloor", "SRAccessibleRoom", 
+                 "SRMediumFloor", "SRBathtub", "SRShower", "SRCrib", 
+                 "SRKingSizeBed", "SRTwinBed", "SRNearElevator", 
+                 "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+HotelLisbon_data[binary_vars] <- lapply(HotelLisbon_data[binary_vars], as.factor)
+
+# Convert BookingsCheckedIn to numeric
+HotelLisbon_data$BookingsCheckedIn <- as.numeric(HotelLisbon_data$BookingsCheckedIn)
+HotelLisbon_data$BookingsNoShowed <- as.numeric(HotelLisbon_data$BookingsNoShowed)
+HotelLisbon_data$BookingsCanceled <- as.numeric(HotelLisbon_data$BookingsCanceled)
+
+# Verify changes
+sapply(HotelLisbon_data, class)
+
+
+
+```
+```{r}
+str(HotelLisbon_data)
+```
+
+
+```{r}
+summary(HotelLisbon_data)
+```
+
+
+#Let's create some Bar Charts and Histograms for further investigation
+
+```{r}
+
+histogram_cols <- c("Age", "DaysSinceCreation", "AverageLeadTime", "LodgingRevenue", "OtherRevenue", 
+                    "BookingsCanceled", "BookingsNoShowed", "BookingsCheckedIn", "PersonsNights", "RoomNights", 
+                    "DaysSinceLastStay", "DaysSinceFirstStay", "Nationality", "DistributionChannel", 
+                    "MarketSegment", "SRHighFloor", "SRLowFloor", "SRAccessibleRoom", "SRMediumFloor", 
+                    "SRBathtub", "SRShower", "SRCrib", "SRKingSizeBed", "SRTwinBed", "SRNearElevator", 
+                    "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+for (col in histogram_cols) {
+ 
+  if (is.numeric(HotelLisbon_data[[col]])) {
+    plot <- ggplot(HotelLisbon_data, aes_string(x = col)) +
+      geom_histogram(bins = 30, fill = 'blue', color = 'black') +
+      labs(title = paste("Histogram of", col), x = col, y = "Frequency") +
+      theme_minimal()
+  } else {
+   
+    plot <- ggplot(HotelLisbon_data, aes_string(x = col)) +
+      geom_bar(fill = 'blue', color = 'black') +
+      labs(title = paste("Bar Chart of", col), x = col, y = "Count") +
+      theme_minimal()
+  }
+  print(plot)
+}
+
+
+```
+
+#Let's create further visualizations keeping in mind the variabkes are numerical and categorical
+```{r}
+# Numeric Variables
+numeric_cols <- c("Age", "AverageLeadTime", "LodgingRevenue", "OtherRevenue", 
+                  "BookingsCanceled", "BookingsNoShowed", "BookingsCheckedIn", "PersonsNights", "RoomNights", 
+                  "DaysSinceLastStay", "DaysSinceFirstStay")
+
+# Create boxplots for numeric variables
+for (col in numeric_cols) {
+  plot <- ggplot(HotelLisbon_data, aes(y = as.numeric(HotelLisbon_data[[col]]))) +
+    geom_boxplot(fill = 'blue', color = 'black') +
+    labs(title = paste("Boxplot of", col), y = col) +
+    theme_minimal()
+
+  # Highlight outliers
+  outliers <- boxplot.stats(HotelLisbon_data[[col]])$out
+  if (length(outliers) > 0) {
+    plot <- plot + geom_point(data = data.frame(y = outliers), aes(x = 1, y = y), color = 'red', size = 3)
+  }
+
+  print(plot)
+}
+
+# Categorical Variables
+categorical_cols <- c("Nationality", "DistributionChannel", "MarketSegment", "SRHighFloor", "SRLowFloor", 
+                      "SRAccessibleRoom", "SRMediumFloor", "SRBathtub", "SRShower", "SRCrib", "SRKingSizeBed", 
+                      "SRTwinBed", "SRNearElevator", "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+# Create bar plots for categorical variables
+for (col in categorical_cols) {
+  plot <- ggplot(HotelLisbon_data, aes_string(x = col)) +
+    geom_bar(fill = 'blue', color = 'black') +
+    labs(title = paste("Bar Chart of", col), x = col, y = "Count") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  print(plot)
+}
+
+
+```
+
+
+Our Business question is :
+#At Hotel Lisbon, how many customers are cancelling bookings"BookingsCanceled" and Not-showing up "BookingsNoShowed" through customer data habits recorded in Hotel Lisbon? And what must the Hotliers do to decrease the number of cancellations and No-shows?
+
+
+#Now let's create Box plots to investigate outliers 
+
+```{r}
+
+
+library(ggplot2)
+library(dplyr)
+
+
+all_columns <- names(HotelLisbon_data)
+
+
+for (col in all_columns) {
+  
+  if (is.numeric(HotelLisbon_data[[col]])) {
+    plot <- ggplot(HotelLisbon_data, aes_string(y = col)) +
+      geom_boxplot(fill = 'blue', color = 'black') +
+      labs(title = paste("Box Plot of", col), y = col, x = "") +
+      theme_minimal()
+    
+    print(plot)
+  }
+}
+
+
+
+
+
+```
+
+
+#by investigating the dataset, we have found out Age has some "Null" values and there are some negative values, which should be cleaned or further investigated. 
+
+
+#WE need to create a better categorical table for customer ID, so that we know if there are any repeated customers. 
+
+
+# The variables "DaysSinceLastStay and DaysSinceFirstStay" have negative values which at the moment don't make much sense. 
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+
+#Let's see if BookingsCanceled and BookingsNoshowed are binary or not
+
+```{r}
+# Check unique values for BookingsCanceled
+unique_values_canceled <- unique(HotelLisbon_data$BookingsCanceled)
+
+# Check unique values for BookingsNoShowed
+unique_values_no_show <- unique(HotelLisbon_data$BookingsNoShowed)
+
+# Check unique values for BookingsNoShowed
+unique_values_checkedIn <- unique(HotelLisbon_data$BookingsCheckedIn)
+
+# Print the results
+cat("Unique values for BookingsCanceled:", unique_values_canceled, "\n")
+cat("Unique values for BookingsNoShowed:", unique_values_no_show, "\n")
+cat("Unique values for BookingsCheckedIn:", unique_values_checkedIn, "\n")
+
+
+# Check if they are binary
+is_binary_canceled <- length(unique_values_canceled) == 2
+is_binary_no_show <- length(unique_values_no_show) == 2
+is_binary_checkedIn <- length(unique_values_checkedIn) == 2
+
+# Print the results
+cat("BookingsCanceled is binary:", is_binary_canceled, "\n")
+cat("BookingsNoShowed is binary:", is_binary_no_show, "\n")
+cat("BookingsCheckedIN is binary:", is_binary_checkedIn, "\n")
+```
+
+```{r}
+summary(HotelLisbon_data$BookingsCanceled)
+summary(HotelLisbon_data$BookingsNoShowed)
+summary(HotelLisbon_data$BookingsCheckedIn)
+
+
+
+```
+
+```{r}
+# Check the class of variables
+class_canceled <- class(HotelLisbon_data$BookingsCanceled)
+class_checked_in <- class(HotelLisbon_data$BookingsCheckedIn)
+class_no_show <- class(HotelLisbon_data$BookingsNoShowed)
+
+# Print the results
+cat("Class of BookingsCanceled:", class_canceled, "\n")
+cat("Class of BookingsCheckedIn:", class_checked_in, "\n")
+cat("Class of BookingsNoShowed:", class_no_show, "\n")
+
+```
+
+
+#Analyze 'DaysSinceFirstStay' and 'DaysSinceLastStay' to understand repeat customer behavior.
+```{r}
+summary(HotelLisbon_data$DaysSinceFirstStay)
+summary(HotelLisbon_data$DaysSinceLastStay)
+summary(HotelLisbon_data$AverageLeadTime)
+summary(HotelLisbon_data$Age)
+```
+#by looking at the data table, in some observations of DaysSinceLastStay and DaysSinceFirstStay the value written in -1 due to this AverageLeadTime is 0 at these observations. 
+#how do we resolve this. 
+--------------------------------------------------------------------------------------------------------------------------------------
+#By observing the data set, I can see that -1 written in DayssinceLastStay and DaysSinceFirstStay. This is are wrong. As the data dictioary says:
+
+
+#DaysSinceLastStay
+
+#The number of days elapsed between the last day of the extraction and the customer’s last arrival date (of a checked-in booking). A value of 1 indicates the customer never stayed at the hotel
+
+#DaysSinceFirstStay
+
+#the customer’s first arrival date (of a checked-in booking). A value of The number of days elapsed between the last day of the extraction and 1 indicates the customer never stayed at the hotel
+
+This means it needs to be put as 1 and remove the negative. 
+
+#AverageLeadTime
+#The average number of days elapsed between the customer’s booking date and arrival date. In other words, this variable is calculated by dividing the sum of the number of days elapsed between the moment each booking was made and its arrival date, by the total of bookings made by the customer
+
+#looking at BookingsCheckedIn, BookinksCanceled and BookingsNoshows of customers with -1 in DaysSinceFirstStay and DaysSinceLastStay, they are all 0, which is not right. If the customer did not show up, it means that BookingsCancled or No-Shows should say 1. But they are 0. this needs to corrected. 
+
+We need to make a new binary variable, from looking at No shows and Cancellations. and evaluate if they are indeed Binary. 
+
+We also have to shorten our collection of variables
+
+#do we need Lodging Revenue and Other Revenue and transform them into log
+
+#Filtering or Correcting Negative Values, Single digit in 'Age', 'AverageLeadTime', 'DaysSinceLastStay', and 'DaysSinceFirstStay'and removing negative sign from DaysSinceFisrtStay and DaysSinceLaststay so that BookingsCheckIn is 0 and BookingsNoShowed and BookingsCanceled is 1
+```{r}
+# Convert Age to numeric
+HotelLisbon_data$Age <- as.numeric(as.character(HotelLisbon_data$Age))
+
+# Replace negative values and single-digit ages with NA
+HotelLisbon_data$Age[HotelLisbon_data$Age < 0 | HotelLisbon_data$Age < 16] <- NA
+
+# Replace missing values in Age with median
+median_age <- median(HotelLisbon_data$Age, na.rm = TRUE)
+HotelLisbon_data$Age[is.na(HotelLisbon_data$Age)] <- median_age
+
+# Print the median age
+cat("Median Age:", median_age, "\n")
+
+# Replace -1 in DaysSinceLastStay and DaysSinceFirstStay with 1
+HotelLisbon_data$DaysSinceLastStay[HotelLisbon_data$DaysSinceLastStay == -1] <- 1
+HotelLisbon_data$DaysSinceFirstStay[HotelLisbon_data$DaysSinceFirstStay == -1] <- 1
+
+# Update BookingsCheckedIn, BookingsCanceled, and BookingsNoShowed
+HotelLisbon_data$BookingsCheckedIn[HotelLisbon_data$DaysSinceFirstStay == 1 | HotelLisbon_data$DaysSinceLastStay == 1] <- 0
+HotelLisbon_data$BookingsNoShowed[HotelLisbon_data$DaysSinceFirstStay == 1 | HotelLisbon_data$DaysSinceLastStay == 1] <- 1
+HotelLisbon_data$BookingsCanceled[HotelLisbon_data$DaysSinceFirstStay == 1 | HotelLisbon_data$DaysSinceLastStay == 1] <- 1
+
+# Check for missing values after replacement
+sum(is.na(HotelLisbon_data$Age))
+
+
+```
+
+```{r}
+
+summary(HotelLisbon_data$DaysSinceLastStay)
+summary(HotelLisbon_data$DaysSinceFirstStay)
+summary(HotelLisbon_data$Age)
+summary(HotelLisbon_data$BookingsCanceled)
+summary(HotelLisbon_data$BookingsNoShowed)
+summary(HotelLisbon_data$BookingsCheckedIn)
+```
+#The negaitvity in these variables have been resolved. the single digit ages have also changed to above the age of 16. 
+#BookingsCanceled and Booking No showed now have a value of 1 where instaed it was zero becuase of -1 written in DayssinceFirst Stay and Days Since last stay. 
+
+#Let's check again the unique values of Bookings checked In, Bookings canceled and Bookings No showed.
+
+```{r}
+# Check unique values for BookingsCanceled
+New_unique_values_canceled <- unique(HotelLisbon_data$BookingsCanceled)
+
+# Check unique values for BookingsNoShowed
+New_unique_values_no_show <- unique(HotelLisbon_data$BookingsNoShowed)
+
+# Check unique values for BookingsNoShowed
+New_unique_values_checkedIn <- unique(HotelLisbon_data$BookingsCheckedIn)
+
+# Print the results
+cat("New Unique values for BookingsCanceled:", New_unique_values_canceled, "\n")
+cat("New Unique values for BookingsNoShowed:", New_unique_values_no_show, "\n")
+cat("New Unique values for BookingsCheckedIn:", New_unique_values_checkedIn, "\n")
+
+
+```
+#Let's count each variables frequency for these unique values
+```{r}
+# Count the frequency of each numeric value in BookingsCanceled
+frequency_canceled <- table(HotelLisbon_data$BookingsCanceled)
+
+# Count the frequency of each numeric value in BookingsNoShowed
+frequency_no_show <- table(HotelLisbon_data$BookingsNoShowed)
+
+# Count the frequency of each numeric value in BookingsCheckedIn
+frequency_checked_in <- table(HotelLisbon_data$BookingsCheckedIn)
+
+# Print the results
+cat("Frequency of each numeric value in BookingsCanceled:\n", frequency_canceled, "\n\n")
+cat("Frequency of each numeric value in BookingsNoShowed:\n", frequency_no_show, "\n\n")
+cat("Frequency of each numeric value in BookingsCheckedIn:\n", frequency_checked_in, "\n")
+
+```
+```{r}
+# Count the frequency of each numeric value in BookingsCanceled
+frequency_canceled <- as.data.frame(table(HotelLisbon_data$BookingsCanceled))
+cat("Frequency of each numeric value in BookingsCanceled:\n")
+for (i in 1:nrow(frequency_canceled)) {
+  cat(paste(frequency_canceled$Var1[i], ":", frequency_canceled$Freq[i]), "\n")
+}
+cat("\n")
+
+# Count the frequency of each numeric value in BookingsNoShowed
+frequency_no_show <- as.data.frame(table(HotelLisbon_data$BookingsNoShowed))
+cat("Frequency of each numeric value in BookingsNoShowed:\n")
+for (i in 1:nrow(frequency_no_show)) {
+  cat(paste(frequency_no_show$Var1[i], ":", frequency_no_show$Freq[i]), "\n")
+}
+cat("\n")
+
+# Count the frequency of each numeric value in BookingsCheckedIn
+frequency_checked_in <- as.data.frame(table(HotelLisbon_data$BookingsCheckedIn))
+cat("Frequency of each numeric value in BookingsCheckedIn:\n")
+for (i in 1:nrow(frequency_checked_in)) {
+  cat(paste(frequency_checked_in$Var1[i], ":", frequency_checked_in$Freq[i]), "\n")
+}
+
+```
+#BookingsCanceled:
+
+The majority of customers (57,004 out of 75,000) did not cancel their bookings (0).
+A significant number of customers (17,976) canceled their bookings once (1).
+There are a few cases where customers canceled multiple bookings (2, 3, 4, 9 times).
+
+#BookingsNoShowed:
+
+The majority of customers (57,074 out of 75,000) did not have a "no-show" (0).
+A significant number of customers (17,920) had one "no-show" incident (1).
+There are a few cases where customers had multiple "no-show" incidents (2, 3).
+
+#BookingsCheckedIn:
+
+A large number of customers (55,813 out of 75,000) checked in once (1).
+There are customers who checked in multiple times, with various frequencies.
+Based on the data dictionary and the understanding of the variables:
+BookingsCheckedIn:
+0: 17,889 customers did not check in for any bookings.
+1: 55,813 customers checked in once.
+2: 1,017 customers checked in twice.
+3: 121 customers checked in thrice.
+4: 57 customers checked in four times.
+5-15: There is a decreasing trend in the number of customers who checked in for more bookings, with decreasing frequency.
+17-40: The frequency further decreases for customers who checked in for a higher number of bookings.
+57: There is one customer who checked in 57 times.
+Analysis:
+
+The majority of customers (55,813) checked in for just one booking, indicating that a significant portion of customers had a single stay event.
+The number of customers decreases as the number of check-ins increases, suggesting that fewer customers have multiple stay events.
+There are outliers or rare cases where a small number of customers have a very high number of check-ins, which might be unusual or require further investigation.
+This variable provides insights into customer behavior regarding the frequency of stays, with the majority having a limited number of stay
+
+Let's create new categories for Bookings checked In, Bookings Canceled and Bookings No show, so that we have less categoires and a more concise description for these customers. 
+
+```{r}
+# Creating a function to categorize BookingsCheckedIn
+categorize_checked_in <- function(count) {
+  if (count == 0) {
+    return("Booked but Not Checked In")
+  } else if (count == 1) {
+    return("Stayed Once")
+  } else if (count == 2) {
+    return("Stayed Twice")
+  } else if (count == 3) {
+    return("Stayed Thrice")
+  } else if (count >= 4 & count <= 15) {
+    return("Good Loyal Customers")
+  } else if (count >= 17 & count <= 57) {
+    return("Great Loyal Customers")
+  } else {
+    return("Undefined Category")
+  }
+}
+
+# creating a new variable for BookingsCheckedIn
+HotelLisbon_data$CheckedInCategory <- sapply(HotelLisbon_data$BookingsCheckedIn, categorize_checked_in)
+
+# Now a function to categorize BookingsCanceled
+categorize_canceled <- function(count) {
+  if (count == 0) {
+    return("Checked In and Stayed")
+  } else if (count >= 1 & count <= 9) {
+    return("Canceled Bookings")
+  } else {
+    return("Undefined Category")
+  }
+}
+
+# creating a new variable for BookingsCanceled
+HotelLisbon_data$CanceledCategory <- sapply(HotelLisbon_data$BookingsCanceled, categorize_canceled)
+
+# And then a function to categorize BookingsNoShowed
+categorize_no_show <- function(count) {
+  if (count == 0) {
+    return("Customers Showed up and Stayed")
+  } else if (count >= 1 & count <= 3) {
+    return("No Show Customers")
+  } else {
+    return("Undefined Category")
+  }
+}
+
+# creating a new variable for BookingsNoShowed
+HotelLisbon_data$NoShowCategory <- sapply(HotelLisbon_data$BookingsNoShowed, categorize_no_show)
+
+# Viewing the results
+head(HotelLisbon_data[, c("CheckedInCategory", "CanceledCategory", "NoShowCategory")])
+
+```
+```{r}
+# Frequency of each customer in CheckedInCategory
+frequency_checked_in_category <- as.data.frame(table(HotelLisbon_data$CheckedInCategory))
+
+# Frequency of each customer in CanceledCategory
+frequency_canceled_category <- as.data.frame(table(HotelLisbon_data$CanceledCategory))
+
+# Frequency of each customer in NoShowCategory
+frequency_no_show_category <- as.data.frame(table(HotelLisbon_data$NoShowCategory))
+
+# View the results
+print("Frequency of each customer in CheckedInCategory:")
+print(frequency_checked_in_category)
+cat("\n")
+
+print("Frequency of each customer in CanceledCategory:")
+print(frequency_canceled_category)
+cat("\n")
+
+print("Frequency of each customer in NoShowCategory:")
+print(frequency_no_show_category)
+
+```
+
+#we have created three new variables that are characteristic in nature for making the readings of Booking frequency more presentable. 
+
+Now we have clearly categorized the customers Booking, cancel and Now Show data. 
+
+#Let's make a new Binary variable called CustomerOutsome from variables BookingsCheckedIn, BookingsCanceled and BookingsNoShowed
+
+```{r}
+# Create a new variable CustomerOutcome
+HotelLisbon_data$CustomerOutcome <- ifelse(HotelLisbon_data$BookingsCanceled > 0 | HotelLisbon_data$BookingsNoShowed > 0, 0, 1)
+
+# Display the unique values of CustomerOutcome
+unique(HotelLisbon_data$CustomerOutcome)
+
+```
+```{r}
+table(HotelLisbon_data$CustomerOutcome)
+```
+We have succecfully created binary variable "CustomerOutcome" 
+#It shows that 18020 customers did not show up or canceled thier resevartions 
+# 56980 customers booked and stayed at the Hotel  
+
+
+
+#Data dimesion:
+```{r}
+ncol(HotelLisbon_data)
+
+```
+
+```{r}
+colnames(HotelLisbon_data)
+```
+
+```{r}
+sapply(HotelLisbon_data, class)
+```
+```{r}
+summary(HotelLisbon_data$Nationality) 
+```
+
+
+#Nationalties is a large data oc countires. Lets' group these countries into continents
+
+```{r}
+install.packages("countrycode")
+library(countrycode)
+```
+```{r}
+# Load the dplyr package for data manipulation
+library(dplyr)
+
+# Create a named vector for continent mapping
+continent_mapping <- c(
+  BRA = 'SA', CAN = 'NA', PHL = 'AS', FRA = 'EU', HUN = 'EU', 
+  ITA = 'EU', EST = 'EU', BEL = 'EU', PRT = 'EU', GBR = 'EU', 
+  USA = 'NA', CHN = 'AS', IRL = 'EU', DEU = 'EU', CHE = 'EU', 
+  AUS = 'OC', ESP = 'EU', RUS = 'EU', AUT = 'EU', ROU = 'EU', 
+  NLD = 'EU', TUR = 'EU', ARG = 'SA', CZE = 'EU', CYP = 'EU', 
+  FIN = 'EU', POL = 'EU', NOR = 'EU', JPN = 'AS', NZL = 'OC', 
+  CAF = 'AF', SRB = 'EU', BGR = 'EU', SYR = 'AS', UKR = 'EU', 
+  VEN = 'SA', SWE = 'EU', ISR = 'AS', DNK = 'EU', URY = 'SA',
+  MAR = 'AF', AGO = 'AF', IND = 'AS', CHL = 'SA', BHR = 'AS', 
+  MEX = 'NA', THA = 'AS', PAK = 'AS', IDN = 'AS', HRV = 'EU', 
+  LUX = 'EU', ARE = 'AS', TUN = 'AF', LVA = 'EU', UZB = 'AS', 
+  TGO = 'AF', SGP = 'AS', BLR = 'EU', GRC = 'EU', ARM = 'AS', 
+  DZA = 'AF', GNB = 'AF', SVK = 'EU', CRI = 'NA', EGY = 'AF', 
+  DOM = 'NA', IRN = 'AS', SVN = 'EU', ZAF = 'AF', MKD = 'EU', 
+  HKG = 'AS', ISL = 'EU', MDV = 'AS', MOZ = 'AF', IRQ = 'AS', 
+  MYS = 'AS', LCA = 'NA', KOR = 'AS', SUR = 'SA', LTU = 'EU', 
+  PRY = 'SA', BOL = 'SA', TWN = 'AS', STP = 'AF', MMR = 'AS', 
+  CMR = 'AF', SAU = 'AS', KWT = 'AS', AZE = 'AS', JEY = 'EU', 
+  COL = 'SA', ALB = 'EU', PAN = 'NA', LBN = 'AS', ECU = 'SA', 
+  NGA = 'AF', MUS = 'AF', MLT = 'EU', BIH = 'EU', KAZ = 'AS', 
+  LBY = 'AF', CPV = 'AF', LKA = 'AS', ATA = 'AN', PER = 'SA', 
+  CIV = 'AF', VNM = 'AS', MNE = 'EU', COM = 'AF', OMN = 'AS', 
+  QAT = 'AS', GAB = 'AF', COD = 'AF', BGD = 'AS', NAM = 'AF', 
+  HTI = 'NA', GEO = 'AS', GIB = 'EU', JOR = 'AS', SYC = 'AF', 
+  LIE = 'EU', SEN = 'AF', ATF = 'AN', KEN = 'AF', VIR = 'NA', 
+  PYF = 'OC', UGA = 'AF', TZA = 'AF', SMR = 'EU', KGZ = 'AS', 
+  PRI = 'NA', NCL = 'OC', BWA = 'AF', GTM = 'NA', BRB = 'NA', 
+  MWI = 'AF', NIC = 'NA', LAO = 'AS', MLI = 'AF', RWA = 'AF', 
+  ASM = 'OC', DMA = 'NA', MRT = 'AF', AIA = 'NA', CUB = 'NA', 
+  SDN = 'AF', JAM = 'NA', TKM = 'AS', SWZ = 'AF', MCO = 'EU', 
+  WSM = 'OC', AND = 'EU', KNA = 'NA', ERI = 'AF', BEN = 'AF', 
+  SLV = 'NA', GUF = 'SA', ABW = 'NA', FRO = 'EU', ZWE = 'AF', 
+  ATG = 'NA', SLE = 'AF', GUY = 'SA', TCD = 'AF', FLK = 'SA', 
+  SPM = 'NA', SOM = 'AF', GHA = 'AF', UMI = 'OC', TJK = 'AS', 
+  ETH = 'AF', KIR = 'OC', PCN = 'OC', LAO = 'AS', MNG = 'AS', 
+  BTN = 'AS', MHL = 'OC', KI = 'OC', VUT = 'OC', TLS = 'AS', 
+  FJI = 'OC', COK = 'OC', NRU = 'OC', TUV = 'OC', SLB = 'OC', 
+  MNP = 'OC', FSM = 'OC', PLW = 'OC', MAF = 'NA', SXM = 'NA', 
+  CUW = 'NA', BES = 'NA', ABW = 'NA', SGS = 'AN', BVT = 'AN', 
+  CXR = 'AS', CCK = 'AS', HMD = 'AN', NFK = 'OC', ATA = 'AN'
+)
+
+# Convert Nationality to character type
+HotelLisbon_data$Nationality <- as.character(HotelLisbon_data$Nationality)
+
+# Add a new column 'Continent' to the dataset
+HotelLisbon_data <- HotelLisbon_data %>%
+  mutate(Continent = continent_mapping[Nationality])
+
+# Check for any countries that were not categorized
+missing_continents <- unique(HotelLisbon_data$Nationality[is.na(HotelLisbon_data$Continent)])
+
+# Print missing continents to see which countries need to be categorized
+print(missing_continents)
+
+```
+```{r}
+# Add a new column 'Continent' to the dataset
+HotelLisbon_data <- HotelLisbon_data %>%
+  mutate(Continent = continent_mapping[Nationality])
+
+# Manually assign continents for the specified countries
+manual_continents <- c(
+  "TON" = "AF",
+  "IOT" = "AS",
+  "WLF" = "OC",
+  "BHS" = "NA",
+  "MDG" = "AF",
+  "GNQ" = "AF",
+  "YEM" = "AS",
+  "PNG" = "OC",
+  "VCT" = "NA",
+  "NPL" = "AS",
+  "GIN" = "AF"
+)
+
+# Update the Continent column for the manually assigned countries
+HotelLisbon_data <- HotelLisbon_data %>%
+  mutate(Continent = ifelse(Nationality %in% names(manual_continents), manual_continents[Nationality], Continent))
+
+# Check for any countries that were not categorized
+missing_continents <- unique(HotelLisbon_data$Nationality[is.na(HotelLisbon_data$Continent)])
+
+# Print missing continents to see which countries need to be categorized
+print(missing_continents)
+
+
+```
+We have managed to manually input all countries into a new variable called continent. 
+
+```{r}
+# Convert 'Continent' column to a factor
+HotelLisbon_data$Continent <- as.factor(HotelLisbon_data$Continent)
+
+# Check the structure of the dataset to confirm the changes
+str(HotelLisbon_data)
+
+```
+
+```{r}
+# Check the class of each variable
+variable_classes <- sapply(HotelLisbon_data, class)
+
+# Print the result
+print(variable_classes)
+
+```
+
+
+#Dropping variables
+```{r}
+# Dropping specific variables
+HotelLisbon_data <- HotelLisbon_data %>%
+  select(-c(...1, Nationality, DaysSinceCreation, NameHash, DocIDHash, AverageLeadTime, DaysSinceLastStay, DaysSinceFirstStay))
+str(HotelLisbon_data)
+
+```
+#Let's change the variables into specific class we want 
+```{r}
+# Convert ID to character
+HotelLisbon_data$ID <- as.character(HotelLisbon_data$ID)
+
+# Convert BookingsCanceled, BookingsNoShowed, BookingsCheckedIn, CheckedInCategory,
+# CanceledCategory, NoShowCategory, and CustomerOutcome to factors
+vars_to_factor <- c("BookingsCanceled", "BookingsNoShowed", "BookingsCheckedIn",
+                    "CheckedInCategory", "CanceledCategory", "NoShowCategory", "CustomerOutcome")
+
+HotelLisbon_data[vars_to_factor] <- lapply(HotelLisbon_data[vars_to_factor], as.factor)
+
+# Display the class of the variables
+sapply(HotelLisbon_data, class)
+
+```
+
+
+#correlation table for numeric values.
+
+```{r}
+# Selected numeric variables
+numeric_variables <- HotelLisbon_data[, sapply(HotelLisbon_data, is.numeric)]
+
+# Create a correlation matrix
+correlation_matrix <- cor(numeric_variables)
+
+# Print the correlation matrix
+print(correlation_matrix)
+
+```
+
+#let's create pivot tables to explore the relationship between "CustomerOutcome" and the variables: "DistributionChannel," "MarketSegment," and "Continent." 
+
+```{r}
+#Pivot table for DistributionChannel and CustomerOutcome:
+
+pivot_table_distribution <- table(HotelLisbon_data$DistributionChannel, HotelLisbon_data$CustomerOutcome)
+
+# Display the pivot table
+pivot_table_distribution
+
+
+```
+```{r}
+# Pivot table for MarketSegment and CustomerOutcome
+pivot_table_market <- table(HotelLisbon_data$MarketSegment, HotelLisbon_data$CustomerOutcome)
+
+# Display the pivot table
+pivot_table_market
+
+```
+```{r}
+# Pivot table for Continent and CustomerOutcome
+pivot_table_continent <- table(HotelLisbon_data$Continent, HotelLisbon_data$CustomerOutcome)
+
+# Display the pivot table
+pivot_table_continent
+
+```
+#ANOVA Tests for Numerical Variables: Age, LodgingRevenue, OtherRevenue, PersonsNights, RoomNights
+
+```{r}
+# ANOVA for Age
+age_anova <- aov(Age ~ CustomerOutcome, data = HotelLisbon_data)
+summary(age_anova)
+```
+
+```{r}
+# ANOVA for LodgingRevenue
+LodgingRevenue_anova <- aov(LodgingRevenue ~ CustomerOutcome, data = HotelLisbon_data)
+summary(LodgingRevenue_anova)
+```
+```{r}
+# ANOVA for OtherRevenue
+OtherRevenue_anova <- aov(OtherRevenue ~ CustomerOutcome, data = HotelLisbon_data)
+summary(OtherRevenue_anova)
+```
+```{r}
+# ANOVA for PersonsNights
+PersonsNights_anova <- aov(PersonsNights ~ CustomerOutcome, data = HotelLisbon_data)
+summary(PersonsNights_anova)
+```
+```{r}
+# ANOVA for RoomNights
+RoomNights_anova <- aov(RoomNights ~ CustomerOutcome, data = HotelLisbon_data)
+summary(RoomNights_anova)
+```
+
+
+#Chi-Square Tests for Categorical Variables:
+```{r}
+# Chi-square test for DistributionChannel
+distribution_chi2 <- chisq.test(table(HotelLisbon_data$DistributionChannel, HotelLisbon_data$CustomerOutcome))
+print(distribution_chi2)
+
+# Chi-square test for MarketSegment
+segment_chi2 <- chisq.test(table(HotelLisbon_data$MarketSegment, HotelLisbon_data$CustomerOutcome))
+print(segment_chi2)
+
+# Chi-square test for Continent
+continent_chi2 <- chisq.test(table(HotelLisbon_data$Continent, HotelLisbon_data$CustomerOutcome))
+print(continent_chi2)
+
+```
+
+```{r}
+colnames(HotelLisbon_data)
+```
+#Let's confirm if the Boolean viariables are infact variables:
+```{r}
+binary_vars <- c("SRHighFloor", "SRLowFloor", "SRAccessibleRoom", "SRMediumFloor",
+                 "SRBathtub", "SRShower", "SRCrib", "SRKingSizeBed", "SRTwinBed",
+                 "SRNearElevator", "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+for (var in binary_vars) {
+  result <- table(HotelLisbon_data[[var]])
+  print(paste("Variable:", var))
+  print(result)
+  if (length(unique(HotelLisbon_data[[var]])) == 2) {
+    print("This is a binary variable.")
+  } else {
+    print("This is not a binary variable.")
+  }
+  cat("\n")
+}
+
+```
+
+
+Visualisations:
+
+```{r}
+# Load ggplot2 library
+library(ggplot2)
+
+# Set a color palette for better visualization
+colors <- c("#1f78b4", "#33a02c")
+```
+
+
+```{r}
+# Box plots for numerical variables
+numerical_vars <- c("Age", "LodgingRevenue", "OtherRevenue", "PersonsNights", "RoomNights")
+for (var in numerical_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = CustomerOutcome, y = get(var), fill = factor(CustomerOutcome))) +
+    geom_boxplot() +
+    labs(title = paste("Box plot for", var, "vs CustomerOutcome"),
+         x = "CustomerOutcome",
+         y = var) +
+    scale_fill_manual(values = colors) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)
+}
+
+# Bar plots for categorical variables
+categorical_vars <- c("BookingsCanceled", "BookingsNoShowed", "BookingsCheckedIn",
+                      "DistributionChannel", "MarketSegment", "Continent")
+for (var in categorical_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = factor(get(var)), fill = factor(CustomerOutcome))) +
+    geom_bar(position = "dodge") +
+    labs(title = paste("Bar plot for", var, "vs CustomerOutcome"),
+         x = var,
+         y = "Count") +
+    scale_fill_manual(values = colors) +
+    theme_minimal()
+  
+  print(p)
+}
+
+# Grouped box plots for mixed variables
+mixed_vars <- c("CheckedInCategory", "CanceledCategory", "NoShowCategory", "MarketSegment")
+for (var in mixed_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = factor(get(var)), y = Age, fill = factor(CustomerOutcome))) +
+    geom_boxplot() +
+    labs(title = paste("Box plot for Age vs", var, "vs CustomerOutcome"),
+         x = var,
+         y = "Age") +
+    scale_fill_manual(values = colors) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)
+}
+
+```
+
+```{r}
+# Load ggplot2 library
+library(ggplot2)
+
+# Set a color palette for better visualization
+colors <- c("#1f78b4", "#33a02c")
+
+# Binary variables
+binary_vars <- c("SRHighFloor", "SRLowFloor", "SRAccessibleRoom", "SRMediumFloor",
+                 "SRBathtub", "SRShower", "SRCrib", "SRKingSizeBed", "SRTwinBed",
+                 "SRNearElevator", "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+# Visualize binary variables against CustomerOutcome
+#Customer Outcome
+for (var in binary_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = factor(get(var)), fill = factor(CustomerOutcome))) +
+    geom_bar(position = "dodge") +
+    labs(title = paste("Bar plot for", var, "vs CustomerOutcome"),
+         x = var,
+         y = "Count") +
+    scale_fill_manual(values = colors) +
+    theme_minimal()
+  
+  print(p)
+}
+
+
+```
+```{r}
+# Load ggplot2 library
+library(ggplot2)
+
+# Set a color palette for better visualization
+colors <- c("#1f78b4", "#33a02c")
+
+# Binary variables
+binary_vars <- c("SRHighFloor", "SRLowFloor", "SRAccessibleRoom", "SRMediumFloor",
+                 "SRBathtub", "SRShower", "SRCrib", "SRKingSizeBed", "SRTwinBed",
+                 "SRNearElevator", "SRAwayFromElevator", "SRNoAlcoholInMiniBar", "SRQuietRoom")
+
+# Other variables
+other_vars <- c("MarketSegment", "CheckedInCategory", "PersonsNights")
+
+# Visualize binary variables against MarketSegment, CheckedInCategory, and PersonsNight
+for (other_var in other_vars) {
+  for (var in binary_vars) {
+    p <- ggplot(HotelLisbon_data, aes(x = factor(get(var)), fill = factor(CustomerOutcome))) +
+      geom_bar(position = "dodge") +
+      facet_grid(paste(". ~", other_var)) +
+      labs(title = paste("Bar plot for", var, "vs CustomerOutcome by", other_var),
+           x = var,
+           y = "Count") +
+      scale_fill_manual(values = colors) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    print(p)
+  }
+}
+
+
+```
+
+
+```{r}
+# Load ggplot2 library
+library(ggplot2)
+
+# Set a color palette for better visualization
+colors <- c("#1f78b4", "#33a02c")
+
+# Categorical variables
+categorical_vars <- c("DistributionChannel", "MarketSegment", "Continent", "CheckedInCategory")
+
+# Visualize categorical variables against CustomerOutcome
+for (var in categorical_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = factor(get(var)), fill = factor(CustomerOutcome))) +
+    geom_bar(position = "dodge") +
+    labs(title = paste("Bar plot for", var, "vs CustomerOutcome"),
+         x = var,
+         y = "Count") +
+    scale_fill_manual(values = colors) +
+    theme_minimal()
+
+  print(p)
+}
+
+# Numeric variables
+numeric_vars <- c("Age", "LodgingRevenue", "OtherRevenue", "PersonsNights", "RoomNights")
+
+# Visualize numeric variables against CustomerOutcome using box plots
+for (var in numeric_vars) {
+  p <- ggplot(HotelLisbon_data, aes(x = factor(CustomerOutcome), y = get(var), fill = factor(CustomerOutcome))) +
+    geom_boxplot() +
+    labs(title = paste("Box plot for", var, "vs CustomerOutcome"),
+         x = "CustomerOutcome",
+         y = var) +
+    scale_fill_manual(values = colors) +
+    theme_minimal()
+
+  print(p)
+}
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+#Bar Plot for Market Segments: Visualizing the number of customers in each market segment:
+
+library(ggplot2)
+
+ggplot(HotelLisbon_data, aes(x = MarketSegment)) +
+  geom_bar(fill = "blue", color = "black") +
+  theme_minimal() +
+  labs(title = "Number of Customers in Each Market Segment", x = "Market Segment", y = "Count")
+
+```
+
+```{r}
+#Histogram for Bookings checked in
+
+ggplot(HotelLisbon_data, aes(x = as.factor(BookingsCheckedIn), y = LodgingRevenue)) +
+  geom_boxplot(outlier.color = "red", fill = "lightgreen") +
+  labs(title = "Lodging Revenue by Bookings Checked In", x = "Bookings Checked In", y = "Lodging Revenue") +
+  scale_x_discrete(labels = c("0" = "No", "1" = "Yes"))
+
+
+
+
+```
+```{r}
+ggplot(HotelLisbon_data, aes(x = as.factor(BookingsNoShowed), fill = as.factor(BookingsCheckedIn))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Bookings No Shows vs. Bookings Checked In", x = "Bookings No Shows", y = "Count", fill = "Checked In") +
+  scale_fill_discrete(name = "Checked In", labels = c("No", "Yes"))
+
+```
+```{r}
+ggplot(HotelLisbon_data, aes(x = as.factor(BookingsCanceled), fill = as.factor(BookingsCheckedIn))) +
+  geom_bar(position = "dodge") +
+  labs(title = "Bookings Cancelled vs. Bookings Checked In", x = "Bookings Cancelled", y = "Count", fill = "Checked In") +
+  scale_fill_discrete(name = "Checked In", labels = c("No", "Yes"))
+
+```
+```{r}
+ggplot(HotelLisbon_data, aes(x = MarketSegment, fill = as.factor(BookingsCheckedIn))) +
+  geom_bar(position = "stack") +
+  labs(title = "Market Segment and Bookings Checked In", x = "Market Segment", y = "Count", fill = "Checked In") +
+  scale_fill_discrete(name = "Checked In", labels = c("No", "Yes"))
+
+```
+```{r}
+ggplot(HotelLisbon_data, aes(x = LodgingRevenue, fill = as.factor(BookingsCheckedIn))) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 30) +
+  labs(title = "Lodging Revenue by Bookings Checked In", x = "Lodging Revenue", y = "Frequency") +
+  scale_fill_discrete(name = "Checked In", labels = c("No", "Yes"))
+
+```
+```{r}
+# Replace 'AnotherNumericVar' with the actual variable name
+ggplot(HotelLisbon_data, aes(x = MarketSegment, y = LodgingRevenue, color = as.factor(BookingsCheckedIn))) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Scatter Plot of Lodging Revenue vs. Market Segment", x = "Market Segment", y = "Lodging Revenue") +
+  scale_color_discrete(name = "Checked In", labels = c("No", "Yes"))
+
+```
+#There are skewed graphs and outliers that we need to resolve
+
+
+```{r}
+# Boxplot to identify outliers
+boxplot(HotelLisbon_data$LodgingRevenue, main = "Boxplot for Lodging Revenue")
+boxplot(HotelLisbon_data$OtherRevenue, main = "Boxplot for Other Revenue")
+
+```
+```{r}
+# Boxplot to identify outliers in Market Segment adn Distribution channel
+boxplot(HotelLisbon_data$MarketSegment, main = "Boxplot for Market Segment")
+boxplot(HotelLisbon_data$DistributionChannel, main = "Boxplot for Distribution cannels")
+
+```
+#There are potential outliers in Other Revenue, Bookings canceled and bookings no shows. We would need to further discuss this with the professor. Do we use these variables or not. We are confused here. 
+
+
+
+Now we need to Balance our data 
+#Check Frequency of the Dependent Variable
+```{r}
+
+table(HotelLisbon_data$CustomerOutcome)
+
+```
+#0 represents customers who canceled or were No shows at the Hotel
+#1 represents customers who stayed at the hotel 
+
+#Visualize the class distribution using a bar plot or pie chart
+```{r}
+# Assuming your dependent variable is named "CustomerOutcome"
+library(ggplot2)
+
+ggplot(HotelLisbon_data, aes(x = CustomerOutcome)) +
+  geom_bar() +
+  labs(title = "Class Distribution of CustomerOutcome")
+
+```
+#0 is definetly our minorty class and we must do Under Sampling here
+
+#Let's finally check Class Proportions
+```{r}
+prop.table(table(HotelLisbon_data$CustomerOutcome))
+```
+```{r}
+colnames(HotelLisbon_data)
+```
+
+#Balancing the Data Set
+
+```{r}
+# Install and load necessary packages
+install.packages("ROSE")
+install.packages("caret")
+install.packages("pROC")
+
+library(ROSE)
+library(caret)
+library(pROC)
+
+
+```
+
+```{r}
+# Undersampling using ROSE
+UnderSampled_HotelLisbon <- ovun.sample(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + BookingsCanceled + BookingsNoShowed + BookingsCheckedIn + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +      CheckedInCategory + CanceledCategory + NoShowCategory
+, data = HotelLisbon_data, method = "under", N = 2 * sum(HotelLisbon_data$CustomerOutcome == 0))$data
+
+head(UnderSampled_HotelLisbon)
+
+```
+
+```{r}
+# Checking the balance of the undersampled data. If it is indeed balanced. 
+table(UnderSampled_HotelLisbon$CustomerOutcome)
+
+# and the Proportions are. Drum Roll, Please!
+prop.table(table(UnderSampled_HotelLisbon$CustomerOutcome))
+
+```
+Let's hope it goes all well from here
+
+#Ok, so now we have to do the traing and testing. With our dataset and Dependent variable: Customer Outcome. 
+```{r}
+set.seed(123) 
+trainIndex <- createDataPartition(UnderSampled_HotelLisbon$CustomerOutcome, p = 0.6, list = FALSE)
+TrainData <- UnderSampled_HotelLisbon[trainIndex, ]
+TestData <- UnderSampled_HotelLisbon[-trainIndex, ]
+
+```
+
+```{r}
+# Correlation matrix for training data
+cor_matrix <- cor(TrainData[, sapply(TrainData, is.numeric)])
+print("Correlation Matrix for Training Data:")
+print(cor_matrix)
+
+```
+
+```{r}
+
+install.packages("ggpubr")
+library(ggpubr)
+library(tidyverse)
+library(devtools)
+
+install.packages("psych")
+library(psych)
+
+install.packages("PerformanceAnalytics")
+library(PerformanceAnalytics)
+library("ggplot2")
+
+install.packages("rcompanion")
+library(rcompanion)
+
+```
+
+
+
+```{r}
+pairs(data = HotelLisbon_data,
+      ~ Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights)
+```
+
+```{r}
+# let's transform them into log numeric variables are Age, LodgingRevenue, OtherRevenue, PersonsNights, and RoomNights
+
+log_transformed_data <- log1p(HotelLisbon_data[, c("Age", "LodgingRevenue", "OtherRevenue", "PersonsNights", "RoomNights")])
+
+pairs(data = log_transformed_data,
+      ~ Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights)
+
+```
+```{r}
+
+# Q-Q plot for a variable
+qqnorm(HotelLisbon_data$Age)
+qqline(HotelLisbon_data$Age)
+ggqqplot(HotelLisbon_data$Age, ylab = "Age")
+```
+```{r}
+# Q-Q plot for a variable
+qqnorm(HotelLisbon_data$LodgingRevenue)
+qqline(HotelLisbon_data$LodgingRevenue)
+ggqqplot(HotelLisbon_data$LodgingRevenue, ylab = "Lodging revenue")
+```
+
+```{r}
+# Q-Q plot for a variable
+qqnorm(TrainData$LodgingRevenue)
+qqline(TrainData$LodgingRevenue)
+ggqqplot(TrainData$LodgingRevenue, ylab = "Lodging revenue")
+```
+
+
+
+```{r}
+qqnorm(HotelLisbon_data$PersonsNights)
+qqline(HotelLisbon_data$PersonsNights)
+ggqqplot(HotelLisbon_data$PersonsNights, ylab = "Persons Per Night")
+```
+```{r}
+qqnorm(HotelLisbon_data$RoomNights)
+qqline(HotelLisbon_data$RoomNights)
+ggqqplot(HotelLisbon_data$RoomNights, ylab = "Rooms per night")
+```
+
+```{r}
+cor_test_result <- cor.test(HotelLisbon_data$Age, HotelLisbon_data$LodgingRevenue, method = "pearson")
+print(cor_test_result)
+```
+```{r}
+cor_test_result <- cor.test(HotelLisbon_data$RoomNights, HotelLisbon_data$LodgingRevenue, method = "pearson")
+print(cor_test_result)
+```
+```{r}
+cor_test_result <- cor.test(HotelLisbon_data$Age, HotelLisbon_data$OtherRevenue, method = "pearson")
+print(cor_test_result)
+```
+
+```{r}
+install.packages("corrplot")
+library(corrplot)
+
+correlation_matrix <- cor(HotelLisbon_data[, sapply(HotelLisbon_data, is.numeric)])
+corrplot(correlation_matrix, method = "color")
+```
+
+#redo this part for better models
+Let's do Logistic regression On Dependent Variable CustomerOutcome with its regressors
+```{r}
+# Logistic regression model 1
+logistic_model1 <- glm(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +  CheckedInCategory , data = TrainData, family = "binomial")
+
+summary(logistic_model1)
+
+```
+
+```{r}
+# Logistic regression model 2 , If we take out CheckedInCategory 
+log_model2 <- glm(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRNoAlcoholInMiniBar + SRLowFloor + SRAccessibleRoom + SRMediumFloor , data = TrainData, family = "binomial")
+
+summary(log_model2)
+
+#CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + BookingsCanceled + BookingsNoShowed + BookingsCheckedIn + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+#SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +      CheckedInCategory + CanceledCategory + NoShowCategory
+```
+
+
+#Let's put all the Bookings categories we have made, CheckedIncategory, CanceledCategory, NoShowCategory.
+
+
+```{r}
+# Logistic regression model 3 , If we put Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment  
+log_model3 <- glm(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment, data = TrainData, family = "binomial")
+
+summary(log_model3)
+
+#CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + BookingsCanceled + BookingsNoShowed + BookingsCheckedIn + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+#SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +      CheckedInCategory + CanceledCategory + NoShowCategory
+```
+
+
+
+#Let's try Model 4. With Only Binary variables. 
+
+```{r}
+# Logistic regression model 4 , With only binary Variables / Booleans   
+log_model4 <- glm(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom, data = TrainData, family = "binomial")
+
+summary(log_model4)
+```
+
+
+
+#Let's do Model 5 with All Binary variables and Include, Market Segment, DistributionChannel
+
+```{r}
+# Logistic regression model 5 ,  
+log_model5 <- glm(CustomerOutcome ~ LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + MarketSegment + DistributionChannel, data = TrainData, family = "binomial")
+
+summary(log_model5)
+
+##CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + BookingsCanceled + BookingsNoShowed + BookingsCheckedIn + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+#SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +      CheckedInCategory + CanceledCategory + NoShowCategory
+```
+
+
+
+#Let's do Model 6 and include Binary variables, include, RoomNights and Market Segment and Distribution Channels.
+
+```{r}
+# Logistic regression model 6 ,  
+log_model6 <- glm(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + MarketSegment + DistributionChannel + RoomNights,  data = TrainData, family = "binomial")
+
+summary(log_model6)
+```
+
+
+
+#Let's do Model 7 with Bianry variable and only include RoomNights and PersonsNights 
+```{r}
+# Logistic regression model 7 ,  
+log_model7 <- glm(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + PersonsNights + RoomNights,  data = TrainData, family = "binomial")
+
+summary(log_model7)
+```
+
+Now that we have 7 different Logistic Models. 
+
+
+
+#From chapter 9 Use this code example : confusionMatrix(deeper.ct.point.pred.train, factor(train.df$Personal.Loan))
+
+```{r}
+library(pROC)
+```
+
+
+Model 1
+
+```{r}
+# Predictions on test data 1
+predictions1 <- predict(logistic_model1, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve1 <- roc(TestData$CustomerOutcome, predictions1)
+auc_score1 <- auc(roc_curve1)
+
+# Confusion matrix
+conf_matrix1 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions1 > 0.5, 1, 0))
+print("Confusion Matrix Model 1:")
+print(conf_matrix1)
+auc_score1
+```
+```{r}
+#cut off 0.5
+#Model 1
+library(caret) # Load the caret package
+
+predicted_classes <- as.factor(ifelse(predictions1 > 0.5, "1", "0"))
+
+# Convert actual outcomes to factor
+actual_classes <- as.factor(TestData$CustomerOutcome)
+
+# Ensure consistent levels
+levels(predicted_classes) <- levels(actual_classes) <- c("0", "1")
+
+# Create confusion matrix using the caret package's function
+conf_matrix1A <- confusionMatrix(predicted_classes, actual_classes)
+print("Confusion Matrix Model 1A:")
+print(conf_matrix1A)
+
+
+```
+
+
+#TrainData <- UnderSampled_HotelLisbon[trainIndex, ]
+#TestData <- UnderSampled_HotelLisbon[-trainIndex, ]
+
+
+
+Model 2
+
+```{r}
+# Predictions on test data 2
+predictions2 <- predict(log_model2, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve2 <- roc(TestData$CustomerOutcome, predictions2)
+auc_score2 <- auc(roc_curve2)
+
+# Confusion matrix
+conf_matrix2 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions2 > 0.5, 1, 0))
+print("Confusion Matrix Model 2:")
+print(conf_matrix2)
+auc_score2
+```
+
+
+
+```{r}
+#Model 2 cut off 0.5
+predicted_classes2 <- as.factor(ifelse(predictions2 > 0.5, "1", "0"))
+
+
+actual_classes2 <- as.factor(TestData$CustomerOutcome)
+
+levels(predicted_classes2) <- levels(actual_classes2) <- c("0", "1")
+
+conf_matrix2A <- confusionMatrix(predicted_classes2, actual_classes2)
+print("Confusion Matrix Model 2A:")
+print(conf_matrix2A)
+
+
+```
+
+
+Model 3
+
+```{r}
+# Predictions on test data 3
+predictions3 <- predict(log_model3, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve3 <- roc(TestData$CustomerOutcome, predictions3)
+auc_score3 <- auc(roc_curve3)
+
+# Confusion matrix
+conf_matrix3 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions3 > 0.5, 1, 0))
+print("Confusion Matrix Model 3:")
+print(conf_matrix3)
+auc_score3
+```
+
+```{r}
+#Model 3 cut off 0.5
+
+predicted_classes3 <- as.factor(ifelse(predictions3 > 0.5, "1", "0"))
+
+actual_classes3 <- as.factor(TestData$CustomerOutcome)
+
+
+levels(predicted_classes3) <- levels(actual_classes3) <- c("0", "1")
+
+
+conf_matrix3A <- confusionMatrix(predicted_classes3, actual_classes3)
+print("Confusion Matrix Model 3A:")
+print(conf_matrix3A)
+
+
+```
+
+
+Model 4
+
+```{r}
+# Predictions on test data
+predictions4 <- predict(log_model4, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve4 <- roc(TestData$CustomerOutcome, predictions4)
+auc_score4 <- auc(roc_curve4)
+
+# Confusion matrix
+conf_matrix4 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions4 > 0.5, 1, 0))
+print("Confusion Matrix Model 4:")
+print(conf_matrix4)
+auc_score4
+```
+
+```{r}
+#Model 4 Cut off 0.5
+
+predicted_classes4 <- as.factor(ifelse(predictions4 > 0.5, "1", "0"))
+
+
+actual_classes4 <- as.factor(TestData$CustomerOutcome)
+
+
+levels(predicted_classes4) <- levels(actual_classes4) <- c("0", "1")
+
+conf_matrix4A <- confusionMatrix(predicted_classes4, actual_classes4)
+print("Confusion Matrix Model 4A:")
+print(conf_matrix4A)
+
+
+
+```
+
+
+
+Model 5
+
+```{r}
+# Predictions on test data
+predictions5 <- predict(log_model5, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve5 <- roc(TestData$CustomerOutcome, predictions5)
+auc_score5 <- auc(roc_curve5)
+
+# Confusion matrix
+conf_matrix5 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions5 > 0.5, 1, 0))
+print("Confusion Matrix Model 5:")
+print(conf_matrix5)
+auc_score5
+```
+
+```{r}
+#Model 5 cut iff 0.5
+
+predicted_classes5 <- as.factor(ifelse(predictions5 > 0.5, "1", "0"))
+
+actual_classes5 <- as.factor(TestData$CustomerOutcome)
+
+
+levels(predicted_classes5) <- levels(actual_classes5) <- c("0", "1")
+
+
+conf_matrix5A <- confusionMatrix(predicted_classes5, actual_classes5)
+print("Confusion Matrix Model 5A:")
+print(conf_matrix5A)
+
+```
+
+
+
+Model 6
+
+```{r}
+# Predictions on test data
+predictions6 <- predict(log_model6, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve6 <- roc(TestData$CustomerOutcome, predictions6)
+auc_score6 <- auc(roc_curve6)
+
+# Confusion matrix
+conf_matrix6 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions6 > 0.5, 1, 0))
+print("Confusion Matrix Model 6:")
+print(conf_matrix6)
+
+auc_score6
+```
+
+```{r}
+#Model 6
+
+
+predicted_classes6 <- as.factor(ifelse(predictions6 > 0.5, "1", "0"))
+
+
+actual_classes6 <- as.factor(TestData$CustomerOutcome)
+
+
+levels(predicted_classes6) <- levels(actual_classes6) <- c("0", "1")
+
+
+conf_matrix6A <- confusionMatrix(predicted_classes6, actual_classes6)
+print("Confusion Matrix Model 6A:")
+print(conf_matrix6A)
+
+
+```
+
+
+Model 7
+```{r}
+# Predictions on test data
+predictions7 <- predict(log_model7, newdata = TestData, type = "response")
+
+# Evaluate model performance
+roc_curve7 <- roc(TestData$CustomerOutcome, predictions7)
+auc_score7 <- auc(roc_curve7)
+
+# Confusion matrix
+conf_matrix7 <- table(Actual = TestData$CustomerOutcome, Predicted = ifelse(predictions7 > 0.5, 1, 0))
+print("Confusion Matrix Model 7:")
+print(conf_matrix7)
+
+auc_score7
+```
+```{r}
+predicted_classes7 <- as.factor(ifelse(predictions7 > 0.5, "1", "0"))
+
+
+actual_classes7 <- as.factor(TestData$CustomerOutcome)
+
+
+levels(predicted_classes7) <- levels(actual_classes7) <- c("0", "1")
+
+conf_matrix7A <- confusionMatrix(predicted_classes7, actual_classes7)
+print("Confusion Matrix Model 7A:")
+print(conf_matrix7A)
+
+
+```
+
+
+
+#performance metrics including accuracy, precision, recall, F1-score, and AUC for each model. Below are the codes for the specified models:
+
+```{r}
+# Model 1
+accuracy_model1 <- sum(diag(conf_matrix1)) / sum(conf_matrix1)
+precision_model1 <- conf_matrix1[2, 2] / sum(conf_matrix1[2, ])
+recall_model1 <- conf_matrix1[2, 2] / sum(conf_matrix1[, 2])
+f1_score_model1 <- 2 * precision_model1 * recall_model1 / (precision_model1 + recall_model1)
+
+roc_curve_model1 <- roc(TestData$CustomerOutcome, predictions1)
+auc_score_model1 <- auc(roc_curve_model1)
+
+# Display metrics
+cat("Model 1 Metrics:\n")
+cat("Accuracy:", accuracy_model1, "\n")
+cat("Precision:", precision_model1, "\n")
+cat("Recall:", recall_model1, "\n")
+cat("F1-Score:", f1_score_model1, "\n")
+cat("AUC:", auc_score_model1, "\n\n")
+
+
+
+```
+
+```{r}
+# Model 2
+accuracy_model2 <- sum(diag(conf_matrix2)) / sum(conf_matrix2)
+precision_model2 <- conf_matrix2[2, 2] / sum(conf_matrix2[2, ])
+recall_model2 <- conf_matrix2[2, 2] / sum(conf_matrix2[, 2])
+f1_score_model2 <- 2 * precision_model2 * recall_model2 / (precision_model2 + recall_model2)
+
+roc_curve_model2 <- roc(TestData$CustomerOutcome, predictions2)
+auc_score_model2 <- auc(roc_curve_model2)
+
+# Display metrics
+cat("Model 2 Metrics:\n")
+cat("Accuracy:", accuracy_model2, "\n")
+cat("Precision:", precision_model2, "\n")
+cat("Recall:", recall_model2, "\n")
+cat("F1-Score:", f1_score_model2, "\n")
+cat("AUC:", auc_score_model2, "\n\n")
+
+```
+```{r}
+# Model 4
+accuracy_model4 <- sum(diag(conf_matrix4)) / sum(conf_matrix4)
+precision_model4 <- conf_matrix4[2, 2] / sum(conf_matrix4[2, ])
+recall_model4 <- conf_matrix4[2, 2] / sum(conf_matrix4[, 2])
+f1_score_model4 <- 2 * precision_model4 * recall_model4 / (precision_model4 + recall_model4)
+
+roc_curve_model4 <- roc(TestData$CustomerOutcome, predictions4)
+auc_score_model4 <- auc(roc_curve_model4)
+
+# Display metrics
+cat("Model 4 Metrics:\n")
+cat("Accuracy:", accuracy_model4, "\n")
+cat("Precision:", precision_model4, "\n")
+cat("Recall:", recall_model4, "\n")
+cat("F1-Score:", f1_score_model4, "\n")
+cat("AUC:", auc_score_model4, "\n\n")
+```
+```{r}
+# Model 5
+accuracy_model5 <- sum(diag(conf_matrix5)) / sum(conf_matrix5)
+precision_model5 <- conf_matrix5[2, 2] / sum(conf_matrix5[2, ])
+recall_model5 <- conf_matrix5[2, 2] / sum(conf_matrix5[, 2])
+f1_score_model5 <- 2 * precision_model5 * recall_model5 / (precision_model5 + recall_model5)
+
+roc_curve_model5 <- roc(TestData$CustomerOutcome, predictions5)
+auc_score_model5 <- auc(roc_curve_model5)
+
+# Display metrics
+cat("Model 5 Metrics:\n")
+cat("Accuracy:", accuracy_model5, "\n")
+cat("Precision:", precision_model5, "\n")
+cat("Recall:", recall_model5, "\n")
+cat("F1-Score:", f1_score_model5, "\n")
+cat("AUC:", auc_score_model5, "\n\n")
+```
+
+```{r}
+# Model 6
+accuracy_model6 <- sum(diag(conf_matrix6)) / sum(conf_matrix6)
+precision_model6 <- conf_matrix6[2, 2] / sum(conf_matrix6[2, ])
+recall_model6 <- conf_matrix6[2, 2] / sum(conf_matrix6[, 2])
+f1_score_model6 <- 2 * precision_model6 * recall_model6 / (precision_model6 + recall_model6)
+
+roc_curve_model6 <- roc(TestData$CustomerOutcome, predictions6)
+auc_score_model6 <- auc(roc_curve_model6)
+
+# Display metrics
+cat("Model 6 Metrics:\n")
+cat("Accuracy:", accuracy_model6, "\n")
+cat("Precision:", precision_model6, "\n")
+cat("Recall:", recall_model6, "\n")
+cat("F1-Score:", f1_score_model6, "\n")
+cat("AUC:", auc_score_model6, "\n\n")
+```
+```{r}
+# Model 7
+accuracy_model7 <- sum(diag(conf_matrix7)) / sum(conf_matrix7)
+precision_model7 <- conf_matrix7[2, 2] / sum(conf_matrix7[2, ])
+recall_model7 <- conf_matrix7[2, 2] / sum(conf_matrix7[, 2])
+f1_score_model7 <- 2 * precision_model7 * recall_model7 / (precision_model7 + recall_model7)
+
+roc_curve_model7 <- roc(TestData$CustomerOutcome, predictions7)
+auc_score_model7 <- auc(roc_curve_model7)
+
+# Display metrics
+cat("Model 7 Metrics:\n")
+cat("Accuracy:", accuracy_model7, "\n")
+cat("Precision:", precision_model7, "\n")
+cat("Recall:", recall_model7, "\n")
+cat("F1-Score:", f1_score_model7, "\n")
+cat("AUC:", auc_score_model7, "\n\n")
+```
+#generating the decile lift curve, bar chart, and goodness of fit statistics for each model:
+```{r}
+
+library(caret)
+library(pROC)
+library(gains)
+```
+
+
+
+#CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +  CheckedInCategory
+
+```{r}
+#Model 1
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 1
+TestData$predicted_prob = predictions1
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis1 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis1, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 1", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+
+```{r}
+#Model 2
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 2
+TestData$predicted_prob = predictions2
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis2 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis2, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 2", x = "Decile", y = "Count of No Shows or Cancellations")
+
+
+```
+
+```{r}
+#Model 3
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 3
+TestData$predicted_prob = predictions3
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis3 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis3, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 3", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+```{r}
+#Model 4
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 4
+TestData$predicted_prob = predictions4
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis4 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis4, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 4", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+
+```{r}
+#Model 5
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 5
+TestData$predicted_prob = predictions5
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis5 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis5, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 5", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+
+```{r}
+#Model 6
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 6
+TestData$predicted_prob = predictions6
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis6 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis6, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 6", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+```{r}
+#Model 7
+
+TestData$CustomerOutcomeNumeric = as.numeric(levels(TestData$CustomerOutcome))[TestData$CustomerOutcome] == 0
+
+# Add predictions to TestData for Model 7
+TestData$predicted_prob = predictions7
+TestData$decile = cut(TestData$predicted_prob, breaks=c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), include.lowest=TRUE)
+
+# Aggregate data
+decile_analysis7 = aggregate(CustomerOutcomeNumeric ~ decile, data = TestData, FUN=sum)
+
+# Plot
+ggplot(decile_analysis7, aes(x = as.factor(decile), y = CustomerOutcomeNumeric)) +
+  geom_bar(stat = "identity", fill="steelblue") +
+  labs(title = "Decile Analysis for Model 7", x = "Decile", y = "Count of No Shows or Cancellations")
+
+```
+
+NoN Parametric Analysis
+
+
+
+#Using Random forest
+#using Log_model5
+```{r}
+# Load the necessary library
+library(randomForest)
+
+# Train the Random Forest model
+rf_model5 <- randomForest(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + MarketSegment + DistributionChannel, data = TrainData, ntree = 500)
+
+# Make predictions on the test set
+rf_predictions5 <- predict(rf_model5, newdata = TestData)
+
+# Evaluate model performance
+rf_conf_matrix5 <- table(TestData$CustomerOutcome, rf_predictions5)
+rf_accuracy5 <- sum(diag(rf_conf_matrix5)) / sum(rf_conf_matrix5)
+
+# Print the confusion matrix and accuracy
+print(rf_conf_matrix5)
+print(paste("Accuracy:", rf_accuracy5))
+
+```
+
+#Using Lod_model6
+# Load the necessary library
+```{r}
+# Load the necessary library
+library(randomForest)
+
+# Train the Random Forest model
+rf_model6 <- randomForest(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + MarketSegment + DistributionChannel + RoomNights, data = TrainData, ntree = 500)
+
+# Make predictions on the test set
+rf_predictions6 <- predict(rf_model6, newdata = TestData)
+
+# Evaluate model performance
+rf_conf_matrix6 <- table(TestData$CustomerOutcome, rf_predictions6)
+rf_accuracy6 <- sum(diag(rf_conf_matrix6)) / sum(rf_conf_matrix6)
+
+# Print the confusion matrix and accuracy
+print(rf_conf_matrix6)
+print(paste("Accuracy:", rf_accuracy6))
+```
+#Usine Logistic_model1
+
+
+```{r}
+# Load the necessary library
+library(randomForest)
+
+# Train the Random Forest model
+rf_model1 <- randomForest(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom +  CheckedInCategory , data = TrainData, ntree = 500)
+
+# Make predictions on the test set
+rf_predictions1 <- predict(rf_model1, newdata = TestData)
+
+# Evaluate model performance
+rf_conf_matrix1 <- table(TestData$CustomerOutcome, rf_predictions1)
+rf_accuracy1 <- sum(diag(rf_conf_matrix1)) / sum(rf_conf_matrix1)
+
+# Print the confusion matrix and accuracy
+print(rf_conf_matrix1)
+print(paste("Accuracy:", rf_accuracy1))
+```
+#Using Model 4
+
+
+```{r}
+# Load the necessary library
+library(randomForest)
+
+# Train the Random Forest model
+rf_model4 <- randomForest(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom
+, data = TrainData, ntree = 500)
+
+# Make predictions on the test set
+rf_predictions4 <- predict(rf_model4, newdata = TestData)
+
+# Evaluate model performance
+rf_conf_matrix4 <- table(TestData$CustomerOutcome, rf_predictions4)
+rf_accuracy4 <- sum(diag(rf_conf_matrix4)) / sum(rf_conf_matrix4)
+
+# Print the confusion matrix and accuracy
+print(rf_conf_matrix4)
+print(paste("Accuracy:", rf_accuracy4))
+```
+
+
+# Let's use Naive Bayes
+
+#Model 5
+```{r}
+library(e1071)
+
+nb_model5 <- naiveBayes(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + MarketSegment + DistributionChannel, data = TrainData)
+
+nb_predictions5 <- predict(nb_model5, newdata = TestData)
+
+nb_conf_matrix5 <- table(TestData$CustomerOutcome, nb_predictions5)
+nb_accuracy5 <- sum(diag(nb_conf_matrix5)) / sum(nb_conf_matrix5)
+
+print(nb_conf_matrix5)
+print(paste("Naive Bayes Model 5 Accuracy:", nb_accuracy5))
+
+```
+#Model 6
+```{r}
+nb_model6 <- naiveBayes(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + MarketSegment + DistributionChannel + RoomNights, data = TrainData)
+
+nb_predictions6 <- predict(nb_model6, newdata = TestData)
+
+nb_conf_matrix6 <- table(TestData$CustomerOutcome, nb_predictions6)
+nb_accuracy6 <- sum(diag(nb_conf_matrix6)) / sum(nb_conf_matrix6)
+
+print(nb_conf_matrix6)
+print(paste("Naive Bayes Model 6 Accuracy:", nb_accuracy6))
+
+```
+#Model 1
+```{r}
+nb_model1 <- naiveBayes(CustomerOutcome ~ Continent + Age + LodgingRevenue + OtherRevenue + PersonsNights + RoomNights + DistributionChannel + MarketSegment + SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom + CheckedInCategory, data = TrainData)
+
+nb_predictions1 <- predict(nb_model1, newdata = TestData)
+
+nb_conf_matrix1 <- table(TestData$CustomerOutcome, nb_predictions1)
+nb_accuracy1 <- sum(diag(nb_conf_matrix1)) / sum(nb_conf_matrix1)
+
+print(nb_conf_matrix1)
+print(paste("Naive Bayes Model 1 Accuracy:", nb_accuracy1))
+
+```
+#Model 4
+
+```{r}
+nb_model4 <- naiveBayes(CustomerOutcome ~ SRHighFloor + SRLowFloor + SRAccessibleRoom + SRMediumFloor + 
+SRBathtub + SRShower + SRCrib + SRKingSizeBed + SRTwinBed + SRNearElevator + SRAwayFromElevator + SRNoAlcoholInMiniBar + SRQuietRoom, data = TrainData)
+
+nb_predictions4 <- predict(nb_model4, newdata = TestData)
+
+nb_conf_matrix4 <- table(TestData$CustomerOutcome, nb_predictions4)
+nb_accuracy4 <- sum(diag(nb_conf_matrix4)) / sum(nb_conf_matrix4)
+
+print(nb_conf_matrix4)
+print(paste("Naive Bayes Model 4 Accuracy:", nb_accuracy4))
+
+```
+#Let's make AUC and ROC curve
+
+#Model 1
+```{r}
+# Load the pROC library
+library(pROC)
+
+# For model 1
+roc_curve_model1 <- roc(TestData$CustomerOutcome, predictions1)
+auc_model1 <- auc(roc_curve_model1)
+plot(roc_curve_model1, main="ROC Curve for Model 1")
+print(paste("AUC for Model 1:", auc_model1))
+
+# Replace predictions1 with the appropriate predictions for other models
+# and repeat the process to get the ROC curve and AUC for each.
+
+```
+#Model 2
+```{r}
+# Model 2
+roc_curve_model2 <- roc(TestData$CustomerOutcome, predictions2)
+auc_model2 <- auc(roc_curve_model2)
+plot(roc_curve_model2, main="ROC Curve for Model 2")
+print(paste("AUC for Model 2:", auc_model2))
+```
+
+#Model 4
+```{r}
+# Model 4
+roc_curve_model4 <- roc(TestData$CustomerOutcome, predictions4)
+auc_model4 <- auc(roc_curve_model4)
+plot(roc_curve_model4, main="ROC Curve for Model 4")
+print(paste("AUC for Model 4:", auc_model4))
+```
+
+#Model 5
+
+```{r}
+# Model 5
+roc_curve_model5 <- roc(TestData$CustomerOutcome, predictions5)
+auc_model5 <- auc(roc_curve_model5)
+plot(roc_curve_model5, main="ROC Curve for Model 5")
+print(paste("AUC for Model 5:", auc_model5))
+```
+
+#Model 6
+```{r}
+# Model 6
+roc_curve_model6 <- roc(TestData$CustomerOutcome, predictions6)
+auc_model6 <- auc(roc_curve_model6)
+plot(roc_curve_model6, main="ROC Curve for Model 6")
+print(paste("AUC for Model 6:", auc_model6))
+```
+
+#Model 7
+```{r}
+# Model 7
+roc_curve_model7 <- roc(TestData$CustomerOutcome, predictions7)
+auc_model7 <- auc(roc_curve_model7)
+plot(roc_curve_model7, main="ROC Curve for Model 7")
+print(paste("AUC for Model 7:", auc_model7))
+```
+
+
