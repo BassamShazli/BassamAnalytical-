@@ -4,7 +4,7 @@
 
 ### 🎓 Education
 - **M.S. in Business Analytics**  
-  *Mercer University* (Expected Graduation: Dec 2024)
+  *Mercer University* (Graduation: Dec 2024)
   
 - **B.A. in Media Sciences (Filmmaking)**  
   *Shaheed Zulfikar Ali Bhutto Institute of Science & Technology* (2013)
@@ -31,7 +31,7 @@
 
 ### 💼 Professional Experience
 
-#### Store Supervisor – Mercer University (Dec 2023 – Present)
+#### Store Supervisor – Mercer University (Dec 2023 – Dec 2024)
 - Managed bookstore logistics for 3,000+ students, achieving 90% on-time deliveries.
 
 #### Digital Marketing Intern – BNM Wholesales (Jul 2023 – Aug 2023)
