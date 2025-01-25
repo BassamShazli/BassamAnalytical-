@@ -1,5 +1,5 @@
 ## 👋 Hi there, I'm Bassam Shazli @ bassam.shazli@gmail.com
--** I'm a media professional with over 9 years of media, maerketing and advertising experience
+-** I'm a media professional with over 9 years of media, marketing and advertising experience
 **I'm what is known as a social media disruptor and my epxertise involve creating concepts to broadcasting them on various platforms
 
 ### 🎓 Education
